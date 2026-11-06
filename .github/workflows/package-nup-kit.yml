@@ -1,0 +1,41 @@
+name: Package Windows NUP kit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [build-nup-kit]
+    paths:
+      - BUILD-NUP.bat
+      - README-NUP-KIT.md
+      - .github/workflows/package-nup-kit.yml
+      - tools/**
+      - recomp/**
+      - runtime/**
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build-nup-kit
+      - name: Assemble source kit (exclude all game-derived data)
+        shell: pwsh
+        run: |
+          $dest = Join-Path $env:RUNNER_TEMP "NUP-KIT"
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          git archive --format=tar HEAD | tar -xf - -C $dest
+          Remove-Item -Recurse -Force (Join-Path $dest "build"), (Join-Path $dest "generated") -ErrorAction SilentlyContinue
+          Get-ChildItem $dest -Recurse -File | Where-Object {
+            $_.Extension -in @(".nup", ".nsp", ".xci", ".nsz", ".xcz")
+          } | Remove-Item -Force
+          Compress-Archive -Path (Join-Path $dest "*") -DestinationPath (Join-Path $env:GITHUB_WORKSPACE "Ocarina-NUP-Windows-Kit.zip") -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ocarina-NUP-Windows-Kit
+          path: Ocarina-NUP-Windows-Kit.zip
+          if-no-files-found: error
+          retention-days: 14
